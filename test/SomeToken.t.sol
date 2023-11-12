@@ -59,7 +59,8 @@ contract SomeTokenTest is Test {
 
         bytes32 digest = sigUtils.getTypedDataHash(permit);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
-
+        // To accomodate the msg.sender == signer requirement in the contract
+        vm.prank(owner);
         someTokenHarness.permit(
             permit.owner,
             permit.spender,
@@ -72,6 +73,63 @@ contract SomeTokenTest is Test {
 
         assertEq(someTokenHarness.allowance(owner, spender), 1e18);
         assertEq(someTokenHarness.getNonce(owner), 1);
+    }
+
+    function test_RevertIf_ExpiredPermit() public {
+        SigUtils.Permit memory permit = SigUtils.Permit({
+            owner: owner,
+            spender: spender,
+            value: 1e18,
+            nonce: 0,
+            deadline: 1 days
+        });
+
+        bytes32 digest = sigUtils.getTypedDataHash(permit);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
+        
+        vm.warp(1 days + 1 seconds); // fast forward one second past the deadline
+
+        vm.expectRevert("Permit: Expired");
+        // To accomodate the msg.sender == signer requirement in the contract
+        vm.prank(owner);
+        someTokenHarness.permit(
+            permit.owner,
+            permit.spender,
+            permit.value,
+            permit.deadline,
+            v,
+            r,
+            s
+        );
+    }
+
+    function testRevert_InvalidSigner() public {
+        SigUtils.Permit memory permit = SigUtils.Permit({
+            owner: owner,
+            spender: spender,
+            value: 1e18,
+            nonce: 0,
+            deadline: 1 days
+        });
+
+        bytes32 digest = sigUtils.getTypedDataHash(permit);
+
+        // spender signs owner's approval which should reject
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(spenderPrivateKey, digest); 
+
+        vm.expectRevert("Permit: Not owner's signature");
+        // To accomodate the msg.sender == signer requirement in the contract
+        vm.prank(owner);
+        someTokenHarness.permit(
+            permit.owner,
+            permit.spender,
+            permit.value,
+            permit.deadline,
+            v,
+            r,
+            s
+        );
     }
 }
 

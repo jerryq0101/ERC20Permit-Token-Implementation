@@ -50,6 +50,9 @@ contract SomeToken is EIP712, ERC20 {
         require(signer == owner, "Permit: Not owner's signature");
         require(signer != address(0), "ECDSA: Invalid Signature");
 
+        // Playing around with diff sig styles
+        require(signer == msg.sender, "Permit: Has to be msg.sender that calls it");
+
         require(block.timestamp < deadline, "Permit: Expired");
         nonces[owner]++;
 
